@@ -87,6 +87,70 @@ Examples on using table-sort-js with frontend frameworks such as [React.js](http
 | "alpha-sort"                             | Sort alphabetically (z11,z2); default is [natural sort](https://en.wikipedia.org/wiki/Natural_sort_order) (z2,z11). |
 | "punct-sort"                             | Sort punctuation; default ignores punctuation.                                                                      |
 
+<br>
+
+## Parent-Child Row Grouping
+
+Keep related rows grouped together when sorting using `data-parent` and `data-child` attributes. This is useful for tables with nested or hierarchical data where child rows should always stay with their parent row.
+
+### Usage
+
+Add `data-parent` attribute to parent rows with a unique identifier, and `data-child` attribute to child rows with the matching parent identifier:
+
+```html
+<table class="table-sort">
+  <thead>
+    <tr>
+      <th>Order ID</th>
+      <th class="numeric-sort">Amount</th>
+      <th>Customer</th>
+    </tr>
+  </thead>
+  <tbody>
+    <!-- Parent row -->
+    <tr data-parent="order-1">
+      <td>1001</td>
+      <td>$250.00</td>
+      <td>John Doe</td>
+    </tr>
+    <!-- Child rows -->
+    <tr data-child="order-1">
+      <td colspan="3">Product: Laptop Stand - Qty: 2</td>
+    </tr>
+    <tr data-child="order-1">
+      <td colspan="3">Product: USB Cable - Qty: 3</td>
+    </tr>
+
+    <!-- Another parent row -->
+    <tr data-parent="order-2">
+      <td>1002</td>
+      <td>$89.99</td>
+      <td>Jane Smith</td>
+    </tr>
+    <!-- Child row -->
+    <tr data-child="order-2">
+      <td colspan="3">Product: Wireless Mouse - Qty: 1</td>
+    </tr>
+  </tbody>
+</table>
+```
+
+### How It Works
+
+- When sorting, only parent rows are sorted
+- Child rows are automatically moved with their parent
+- Child rows maintain their relative order under each parent
+- The unique identifier can be any string (including special characters like slashes for date ranges: `2025-01-01/2025-01-31`)
+
+### Use Cases
+
+- **Order details**: Show order items under each order
+- **Expandable rows**: Keep detail rows with their summary row
+- **Nested tables**: Maintain table-in-table relationships
+- **Hierarchical data**: Parent-child relationships in any form
+
+<br>
+
 ## Development:
 
 If you wish to contribute, install instructions can be found [here.](https://kyle-wannacott.github.io/table-sort-js/docs/development.html)

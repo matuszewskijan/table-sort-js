@@ -464,17 +464,53 @@ function tableSortJs(testingTableSortJS = false, domDocumentWindow = document) {
   function updateTable(tableProperties) {
     const { column, table, columnIndex, hasThClass } = tableProperties;
     for (let [i, tr] of table.visibleRows.entries()) {
+      let parentHTML;
       if (hasThClass.fileSize) {
         if (table.hasClass.cellsSort) {
           tr.innerHTML = updateFilesize(i, table, tr, column, columnIndex);
         } else {
-          tr.outerHTML = updateFilesize(i, table, tr, column, columnIndex);
+          parentHTML = updateFilesize(i, table, tr, column, columnIndex);
+          tr.outerHTML = parentHTML;
         }
       } else if (!hasThClass.fileSize) {
         if (table.hasClass.cellsSort) {
           tr.innerHTML = columnIndexAndTableRow[column.toBeSorted[i]];
         } else {
-          tr.outerHTML = columnIndexAndTableRow[column.toBeSorted[i]];
+          parentHTML = columnIndexAndTableRow[column.toBeSorted[i]];
+          tr.outerHTML = parentHTML;
+        }
+      }
+
+      // Insert child rows after parent if they exist
+      if (!table.hasClass.cellsSort && parentHTML) {
+        const template = !testingTableSortJS
+          ? document.createElement("template")
+          : domDocumentWindow.createElement("template");
+        template.innerHTML = parentHTML;
+        const parentRow = template.content.firstChild;
+        const parentId = parentRow ? parentRow.getAttribute("data-parent") : null;
+
+        if (parentId && table.childRowsHTML[parentId]) {
+          // Find the newly inserted parent row in the DOM
+          const allBodyRows = table.bodies.item(0).querySelectorAll("tr");
+          let insertAfterRow = null;
+
+          // Find the row we just updated
+          for (let row of allBodyRows) {
+            if (row.getAttribute("data-parent") === parentId && !row.hasAttribute("data-child")) {
+              insertAfterRow = row;
+              break;
+            }
+          }
+
+          if (insertAfterRow) {
+            // Insert all child rows after the parent
+            for (let childHTML of table.childRowsHTML[parentId]) {
+              insertAfterRow.insertAdjacentHTML("afterend", childHTML);
+              // Update reference for next child
+              insertAfterRow = insertAfterRow.nextElementSibling;
+            }
+          }
         }
       }
     }
@@ -547,12 +583,30 @@ function tableSortJs(testingTableSortJS = false, domDocumentWindow = document) {
       column.spanSum = {};
       getColSpanData(table.headers[headerIndex], column);
 
-      table.visibleRows = Array.prototype.filter.call(
+      const allRows = Array.prototype.filter.call(
         table.bodies.item(headerIndex).querySelectorAll("tr"),
         (tr) => {
           return tr.style.display !== "none";
         }
       );
+
+      // Detect parent-child relationships
+      table.childRowsHTML = {};
+      table.visibleRows = [];
+
+      for (let tr of allRows) {
+        const childAttr = tr.getAttribute("data-child");
+        if (childAttr) {
+          // This is a child row - store its HTML
+          if (!table.childRowsHTML[childAttr]) {
+            table.childRowsHTML[childAttr] = [];
+          }
+          table.childRowsHTML[childAttr].push(tr.outerHTML);
+        } else {
+          // This is either a parent row or a regular row
+          table.visibleRows.push(tr);
+        }
+      }
 
       if (!table.hasClass.rememberSort) {
         timesClickedColumn = rememberSort(

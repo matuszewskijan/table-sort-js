@@ -1,6 +1,7 @@
 {
   "homepage": "http://LeeWannacott.github.io/table-sort-js",
   "name": "table-sort-js",
+  "main": "public/table-sort.js",
   "version": "0.1.0",
   "private": true,
   "scripts": {
