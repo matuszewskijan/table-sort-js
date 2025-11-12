@@ -464,7 +464,12 @@ function tableSortJs(testingTableSortJS = false, domDocumentWindow = document) {
   }
 
   function updateTable(tableProperties) {
-    const { column, table, columnIndex, hasThClass } = tableProperties;
+    const { column, table, columnIndex, hasThClass, sortDirection, th } = tableProperties;
+
+    // Determine if we're using numeric sort for children
+    const isNumericSort = th.classList.contains("numeric-sort");
+    const isAlphaSort = th.classList.contains("alpha-sort");
+    const isPunctSort = th.classList.contains("punct-sort");
     for (let [i, tr] of table.visibleRows.entries()) {
       let parentHTML;
       if (hasThClass.fileSize) {
@@ -492,7 +497,37 @@ function tableSortJs(testingTableSortJS = false, domDocumentWindow = document) {
         const parentRow = template.content.firstChild;
         const parentId = parentRow ? parentRow.getAttribute("data-parent") : null;
 
-        if (parentId && table.childRowsHTML[parentId]) {
+        if (parentId && table.childRowsData[parentId]) {
+          // Sort children by their sort values
+          const sortedChildren = [...table.childRowsData[parentId]];
+
+          sortedChildren.sort((a, b) => {
+            const val1 = a.sortValue;
+            const val2 = b.sortValue;
+
+            // Try numeric comparison first if numeric-sort is set
+            if (isNumericSort) {
+              const matchCurrencyCommaAndPercent = /[$£€¥₩₽₺₣฿₿Ξξ¤¿\u20A1\uFFE0,% ]/g;
+              const num1Str = val1.replace(matchCurrencyCommaAndPercent, "");
+              const num2Str = val2.replace(matchCurrencyCommaAndPercent, "");
+              const num1 = parseFloat(num1Str);
+              const num2 = parseFloat(num2Str);
+
+              if (!isNaN(num1) && !isNaN(num2)) {
+                return sortDirection === "asc" ? num1 - num2 : num2 - num1;
+              }
+            }
+
+            // Fall back to string comparison
+            const comparison = val1.localeCompare(
+              val2,
+              navigator.languages[0] || navigator.language,
+              { numeric: !isAlphaSort, ignorePunctuation: !isPunctSort }
+            );
+
+            return sortDirection === "asc" ? comparison : -comparison;
+          });
+
           // Find the newly inserted parent row in the DOM
           const allBodyRows = table.bodies.item(0).querySelectorAll("tr");
           let insertAfterRow = null;
@@ -506,9 +541,9 @@ function tableSortJs(testingTableSortJS = false, domDocumentWindow = document) {
           }
 
           if (insertAfterRow) {
-            // Insert all child rows after the parent
-            for (let childHTML of table.childRowsHTML[parentId]) {
-              insertAfterRow.insertAdjacentHTML("afterend", childHTML);
+            // Insert all sorted child rows after the parent
+            for (let childData of sortedChildren) {
+              insertAfterRow.insertAdjacentHTML("afterend", childData.html);
               // Update reference for next child
               insertAfterRow = insertAfterRow.nextElementSibling;
             }
@@ -593,16 +628,24 @@ function tableSortJs(testingTableSortJS = false, domDocumentWindow = document) {
       );
 
       // Detect parent-child relationships
-      table.childRowsHTML = {};
+      table.childRowsData = {};
       table.visibleRows = [];
       for (let tr of allRows) {
         const childAttr = tr.getAttribute("data-child");
         if (childAttr) {
-          // This is a child row - store its HTML
-          if (!table.childRowsHTML[childAttr]) {
-            table.childRowsHTML[childAttr] = [];
+          // This is a child row - store its HTML and sort value
+          if (!table.childRowsData[childAttr]) {
+            table.childRowsData[childAttr] = [];
           }
-          table.childRowsHTML[childAttr].push(tr.outerHTML);
+
+          // Extract the sort value from the column being sorted
+          const childColumn = column.getColumn(tr, column.spanSum, column.span);
+          const sortValue = childColumn ? childColumn.textContent : "";
+
+          table.childRowsData[childAttr].push({
+            html: tr.outerHTML,
+            sortValue: sortValue
+          });
           // Remove the original child row from DOM
           tr.remove();
         } else {
@@ -651,6 +694,16 @@ function tableSortJs(testingTableSortJS = false, domDocumentWindow = document) {
         sortDates("dmy", table, column);
       }
 
+      // Determine sort direction
+      let sortDirection = "asc";
+      if (timesClickedColumn === 0) {
+        sortDirection = desc ? "desc" : "asc";
+      } else if (timesClickedColumn === 1) {
+        sortDirection = desc ? "desc" : "asc";
+      } else if (timesClickedColumn === 2) {
+        sortDirection = desc ? "asc" : "desc";
+      }
+
       const tableProperties = {
         table,
         tableRows: table.visibleRows,
@@ -663,6 +716,7 @@ function tableSortJs(testingTableSortJS = false, domDocumentWindow = document) {
         desc,
         timesClickedColumn,
         arrow,
+        sortDirection,
       };
       timesClickedColumn = getTableData(tableProperties, timesClickedColumn);
       updateTable(tableProperties);
